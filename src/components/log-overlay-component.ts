@@ -29,7 +29,7 @@ import { LogFileViewer } from "./log-file-viewer";
 import { statusIcon } from "./status-format";
 
 // Lines that aren't log content: top border + tabs + divider + divider + status + footer + bottom border
-const CHROME_LINES = 6;
+const CHROME_LINES = 7;
 const MIN_LOG_ROWS = 5;
 const OVERLAY_FRACTION = 0.8;
 const MAX_TAB_NAME = 12;
@@ -391,6 +391,9 @@ export class LogOverlayComponent implements Component {
 
     // ── Footer / keybindings ────────────────────────────────────────────────
     lines.push(row(this.renderFooterContent(innerWidth)));
+
+    // ── Bottom border ───────────────────────────────────────────────────────
+    lines.push(border(`╰${"─".repeat(width - 2)}╯`));
 
     return lines;
   }
