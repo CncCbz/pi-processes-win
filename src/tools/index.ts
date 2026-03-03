@@ -224,6 +224,23 @@ Note: User always sees process updates in the UI. The notify flags control wheth
         }
 
         fields.push(new Text(lines.join("\n"), 0, 0));
+
+        // Collapsed summary
+        const previewSource =
+          details.output.stdout.length > 0
+            ? details.output.stdout
+            : details.output.stderr;
+        const preview = previewSource
+          .slice(-2)
+          .map((l) => stripAnsi(l))
+          .join("\n");
+        fields.push({
+          label: "Output",
+          value: preview
+            ? `${theme.fg("muted", preview)}`
+            : theme.fg("muted", "(empty)"),
+          showCollapsed: true,
+        });
       } else if (
         details.action === "list" &&
         details.processes &&
@@ -263,6 +280,31 @@ Note: User always sees process updates in the UI. The notify flags control wheth
         }
 
         fields.push(new Text(lines.join("\n"), 0, 0));
+
+        // Collapsed summary: first 3 processes
+        const summary = details.processes
+          .slice(0, 3)
+          .map((p) => {
+            const s =
+              p.status === "running"
+                ? theme.fg("accent", "running")
+                : p.status === "exited" && p.success
+                  ? theme.fg("success", "exit(0)")
+                  : p.status === "exited"
+                    ? theme.fg("error", `exit(${p.exitCode ?? "?"})`)
+                    : theme.fg("muted", p.status);
+            return `${theme.fg("accent", `"${p.name}"`)} [${s}]`;
+          })
+          .join(", ");
+        const more =
+          details.processes.length > 3
+            ? theme.fg("muted", ` +${details.processes.length - 3} more`)
+            : "";
+        fields.push({
+          label: "Processes",
+          value: summary + more,
+          showCollapsed: true,
+        });
       } else if (details.action === "logs" && details.logFiles) {
         fields.push(
           new Text(
@@ -283,16 +325,22 @@ Note: User always sees process updates in the UI. The notify flags control wheth
         });
       }
 
-      const footer = new ToolFooter(theme, {
-        items: [
-          { label: "action", value: details.action, tone: "accent" },
-          {
-            label: "status",
-            value: details.success ? "ok" : "error",
-            tone: details.success ? "success" : "error",
-          },
-        ],
-      });
+      const footerItems: Array<{
+        label: string;
+        value: string;
+        tone: "accent" | "success" | "error" | "warning" | "muted";
+      }> = [];
+      if (!details.success) {
+        footerItems.push({
+          label: "status",
+          value: "error",
+          tone: "error",
+        });
+      }
+      const footer =
+        footerItems.length > 0
+          ? new ToolFooter(theme, { items: footerItems })
+          : undefined;
 
       return new ToolBody({ fields, footer }, options, theme);
     },
