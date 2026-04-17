@@ -1,3 +1,5 @@
+![banner](https://assets.aliou.me/pi-extensions/banners/pi-processes.png)
+
 # pi-processes
 
 Manage background processes from Pi without blocking the conversation.
