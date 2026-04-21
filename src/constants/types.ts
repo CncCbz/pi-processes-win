@@ -35,7 +35,7 @@ export interface LogWatch {
 export interface ProcessInfo {
   id: string;
   name: string;
-  pid: number; // On Unix, this is also the PGID (process group leader)
+  pid: number; // On Unix this is also the detached process-group leader; on Windows it is the root process PID
   command: string;
   cwd: string;
   startTime: number;

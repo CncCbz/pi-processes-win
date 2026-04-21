@@ -1,6 +1,9 @@
+import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ManagerEvent } from "./constants";
 import { ProcessManager } from "./manager";
+
+const TEST_CWD = tmpdir();
 
 function waitForEnd(manager: ProcessManager, id: string): Promise<void> {
   return new Promise((resolve) => {
@@ -30,7 +33,7 @@ describe("process_output_changed", () => {
   it("emits process_output_changed on stdout", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "echo hello", "/tmp");
+    const info = manager.start("test", "echo hello", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     const outputEvents = events.filter(
@@ -46,7 +49,7 @@ describe("process_output_changed", () => {
   it("emits process_output_changed on stderr", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "echo err >&2", "/tmp");
+    const info = manager.start("test", "echo err >&2", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     const outputEvents = events.filter(
@@ -62,7 +65,7 @@ describe("process_output_changed", () => {
   it("throttles rapid output", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "seq 1 200", "/tmp");
+    const info = manager.start("test", "seq 1 200", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     const outputEvents = events.filter(
@@ -81,7 +84,7 @@ describe("process_output_changed", () => {
     const info2 = manager.start(
       "dual",
       "bash -c 'for i in $(seq 1 50); do echo out$i; echo err$i >&2; done'",
-      "/tmp",
+      TEST_CWD,
     );
     await waitForEnd(manager, info2.id);
     const dualCount = events2.filter(
@@ -95,7 +98,7 @@ describe("process_output_changed", () => {
   it("trailing emit fires after burst ends", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "seq 1 100", "/tmp");
+    const info = manager.start("test", "seq 1 100", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     // There should be at least one output event, and a process_ended event
@@ -110,7 +113,7 @@ describe("process_output_changed", () => {
   it("final output event before process_ended", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "echo hello", "/tmp");
+    const info = manager.start("test", "echo hello", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     let lastOutputIdx = -1;
@@ -130,7 +133,7 @@ describe("process_output_changed", () => {
   it("no output events for silent process", async () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
-    const info = manager.start("test", "true", "/tmp");
+    const info = manager.start("test", "true", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     // Wait a bit for any stale trailing emits
@@ -144,7 +147,7 @@ describe("process_output_changed", () => {
 
   it("no stale events after clearFinished", async () => {
     manager = new ProcessManager();
-    const info = manager.start("test", "seq 1 50", "/tmp");
+    const info = manager.start("test", "seq 1 50", TEST_CWD);
     await waitForEnd(manager, info.id);
 
     manager.clearFinished();
@@ -164,8 +167,8 @@ describe("process_output_changed", () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
 
-    const info1 = manager.start("proc1", "echo one", "/tmp");
-    const info2 = manager.start("proc2", "echo two", "/tmp");
+    const info1 = manager.start("proc1", "echo one", TEST_CWD);
+    const info2 = manager.start("proc2", "echo two", TEST_CWD);
 
     await Promise.all([
       waitForEnd(manager, info1.id),
@@ -196,6 +199,34 @@ describe("process_output_changed", () => {
   });
 });
 
+describe("process_kill", () => {
+  let manager: ProcessManager;
+
+  afterEach(() => {
+    manager.cleanup();
+  });
+
+  it("terminates a running process", async () => {
+    manager = new ProcessManager();
+
+    const info = manager.start(
+      "sleepy",
+      'node -e "setInterval(() => {}, 1000)"',
+      TEST_CWD,
+    );
+
+    const result = await manager.kill(info.id, {
+      signal: "SIGTERM",
+      timeoutMs: 3000,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.info.status).toBe("killed");
+    }
+  });
+});
+
 describe("process_watch_matched", () => {
   let manager: ProcessManager;
 
@@ -210,7 +241,7 @@ describe("process_watch_matched", () => {
     const info = manager.start(
       "watch-once",
       "bash -c 'echo ready; echo ready; echo ready'",
-      "/tmp",
+      TEST_CWD,
       {
         logWatches: [{ pattern: "ready" }],
       },
@@ -237,7 +268,7 @@ describe("process_watch_matched", () => {
     const info = manager.start(
       "watch-repeat",
       "bash -c 'echo done; echo done; echo done'",
-      "/tmp",
+      TEST_CWD,
       {
         logWatches: [{ pattern: "done", repeat: true }],
       },
@@ -256,7 +287,7 @@ describe("process_watch_matched", () => {
     const info = manager.start(
       "watch-stream",
       "bash -c 'echo out; echo err >&2'",
-      "/tmp",
+      TEST_CWD,
       {
         logWatches: [{ pattern: "err", stream: "stderr" }],
       },
@@ -281,7 +312,7 @@ describe("process_watch_matched", () => {
     const info = manager.start(
       "watch-both",
       "bash -c 'echo marker; echo marker >&2'",
-      "/tmp",
+      TEST_CWD,
       {
         logWatches: [{ pattern: "marker", stream: "both", repeat: true }],
       },
@@ -309,7 +340,7 @@ describe("process_watch_matched", () => {
     manager = new ProcessManager();
     const events = collectEvents(manager);
 
-    const info = manager.start("watch-trailing", "printf ready", "/tmp", {
+    const info = manager.start("watch-trailing", "printf ready", TEST_CWD, {
       logWatches: [{ pattern: "ready" }],
     });
 
@@ -323,7 +354,7 @@ describe("process_watch_matched", () => {
     manager = new ProcessManager();
 
     expect(() =>
-      manager.start("bad-watch", "echo ok", "/tmp", {
+      manager.start("bad-watch", "echo ok", TEST_CWD, {
         logWatches: [{ pattern: "(" }],
       }),
     ).toThrowError(/Invalid log watch pattern/);

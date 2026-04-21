@@ -62,7 +62,8 @@ export function buildSettingsSections(
         {
           id: "execution.shellPath",
           label: "Shell path",
-          description: "Absolute shell path override used to execute commands",
+          description:
+            "Absolute shell path override used to execute commands. Auto reuses Pi's shellPath setting when available, then Pi's normal shell discovery.",
           currentValue:
             tabConfig?.execution?.shellPath ??
             resolved.execution.shellPath ??
@@ -73,6 +74,8 @@ export function buildSettingsSections(
             "/bin/bash",
             "/usr/bin/bash",
             "/usr/local/bin/bash",
+            "C:\\Program Files\\Git\\bin\\bash.exe",
+            "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
           ],
         },
       ],

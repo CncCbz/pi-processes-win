@@ -1,7 +1,12 @@
 import type * as nodeFs from "node:fs";
 import { existsSync } from "node:fs";
+import { getShellConfig } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { resolveShellExecutable } from "./command-executor";
+import { resolveShellSpawnConfig } from "./command-executor";
+
+vi.mock("@mariozechner/pi-coding-agent", () => ({
+  getShellConfig: vi.fn(),
+}));
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof nodeFs>();
@@ -9,40 +14,53 @@ vi.mock("node:fs", async (importOriginal) => {
 });
 
 const existsSyncMock = vi.mocked(existsSync);
+const getShellConfigMock = vi.mocked(getShellConfig);
 
-describe("resolveShellExecutable", () => {
-  it("prefers shell configured in settings when it is an existing absolute path", () => {
-    existsSyncMock.mockImplementation(
-      (path) => path === "/nix/store/abc-bash-5.3/bin/bash",
-    );
-
-    const resolved = resolveShellExecutable({
-      configuredShell: "/nix/store/abc-bash-5.3/bin/bash",
-      knownPaths: ["/bin/bash", "/usr/bin/bash"],
+describe("resolveShellSpawnConfig", () => {
+  it("prefers the extension shell override over Pi auto shell resolution", () => {
+    existsSyncMock.mockReturnValue(true);
+    getShellConfigMock.mockReturnValue({
+      shell: "C:/Pi/Git/bin/bash.exe",
+      args: ["-c"],
     });
 
-    expect(resolved).toBe("/nix/store/abc-bash-5.3/bin/bash");
-  });
-
-  it("falls back to first existing known shell path", () => {
-    existsSyncMock.mockImplementation((path) => path === "/usr/bin/bash");
-
-    const resolved = resolveShellExecutable({
-      configuredShell: undefined,
-      knownPaths: ["/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash"],
+    const resolved = resolveShellSpawnConfig({
+      cwd: "D:/work/project",
+      configuredShell: "C:/ext/bash.exe",
     });
 
-    expect(resolved).toBe("/usr/bin/bash");
+    expect(getShellConfigMock).not.toHaveBeenCalled();
+    expect(resolved).toEqual({
+      shell: "C:/ext/bash.exe",
+      args: ["-c"],
+    });
   });
 
-  it("throws when no configured/known shell path exists", () => {
+  it("throws when the extension shell override does not exist", () => {
     existsSyncMock.mockReturnValue(false);
 
     expect(() =>
-      resolveShellExecutable({
-        configuredShell: undefined,
-        knownPaths: ["/bin/bash", "/usr/bin/bash"],
+      resolveShellSpawnConfig({
+        cwd: "D:/work/project",
+        configuredShell: "C:/missing/bash.exe",
       }),
-    ).toThrow(/shell/i);
+    ).toThrow(/Configured shell path not found/i);
+  });
+
+  it("delegates auto shell resolution to Pi when no override is set", () => {
+    getShellConfigMock.mockReturnValue({
+      shell: "C:/Pi/Git/bin/bash.exe",
+      args: ["-c"],
+    });
+
+    const resolved = resolveShellSpawnConfig({
+      cwd: "D:/work/project",
+    });
+
+    expect(getShellConfigMock).toHaveBeenCalledTimes(1);
+    expect(resolved).toEqual({
+      shell: "C:/Pi/Git/bin/bash.exe",
+      args: ["-c"],
+    });
   });
 });

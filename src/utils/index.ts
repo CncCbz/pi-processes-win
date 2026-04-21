@@ -6,4 +6,4 @@ export {
   formatTimestamp,
   truncateCmd,
 } from "./format";
-export { isProcessGroupAlive, killProcessGroup } from "./process-group";
+export { isProcessAlive, killProcessTree } from "./process-group";

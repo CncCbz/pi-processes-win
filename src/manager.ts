@@ -22,7 +22,7 @@ import {
   type StartOptions,
   type WriteResult,
 } from "./constants";
-import { isProcessGroupAlive, killProcessGroup } from "./utils";
+import { isProcessAlive, killProcessTree } from "./utils";
 import { spawnCommand } from "./utils/command-executor";
 
 interface ResolvedWatch {
@@ -159,7 +159,7 @@ export class ProcessManager {
       if (!LIVE_STATUSES.has(managed.status)) continue;
       if (!managed.pid || managed.pid <= 0) continue;
 
-      const alive = isProcessGroupAlive(managed.pid);
+      const alive = isProcessAlive(managed.pid);
       if (alive) continue;
 
       if (!managed.endTime) {
@@ -420,7 +420,7 @@ export class ProcessManager {
     this.transition(managed, "terminating");
 
     try {
-      killProcessGroup(managed.pid, signal);
+      killProcessTree(managed.pid, signal);
       managed.lastSignalSent = signal;
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
@@ -433,11 +433,12 @@ export class ProcessManager {
       }
     }
 
-    const graceMs = signal === "SIGKILL" ? 200 : timeoutMs;
+    const graceMs =
+      process.platform === "win32" || signal === "SIGKILL" ? 200 : timeoutMs;
 
     await new Promise((r) => setTimeout(r, graceMs));
 
-    const alive = isProcessGroupAlive(managed.pid);
+    const alive = isProcessAlive(managed.pid);
 
     if (alive) {
       this.transition(managed, "terminate_timeout");
@@ -536,7 +537,7 @@ export class ProcessManager {
     for (const p of this.processes.values()) {
       if (!LIVE_STATUSES.has(p.status)) continue;
       try {
-        killProcessGroup(p.pid, "SIGKILL");
+        killProcessTree(p.pid, "SIGKILL");
       } catch {
         // Ignore - process may already be dead
       }
@@ -562,7 +563,7 @@ export class ProcessManager {
     for (const p of this.processes.values()) {
       if (!LIVE_STATUSES.has(p.status)) continue;
       try {
-        killProcessGroup(p.pid, "SIGKILL");
+        killProcessTree(p.pid, "SIGKILL");
       } catch {
         // Ignore
       }

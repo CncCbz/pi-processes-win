@@ -1,43 +1,32 @@
 // Uses node:child_process directly instead of pi.exec() because process
 // management requires long-lived streaming processes with stdin/stdout piping
 // and detached process groups, which pi.exec() does not support.
+
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { getShellConfig } from "@mariozechner/pi-coding-agent";
 
-interface ResolveShellExecutableOptions {
+interface ResolveShellConfigOptions {
+  cwd: string;
   configuredShell?: string;
-  knownPaths: string[];
 }
 
-const DEFAULT_KNOWN_SHELL_PATHS = [
-  "/run/current-system/sw/bin/bash",
-  "/bin/bash",
-  "/usr/bin/bash",
-  "/usr/local/bin/bash",
-];
-
-function isExistingAbsolutePath(shell: string | undefined): shell is string {
-  return typeof shell === "string" && isAbsolute(shell) && existsSync(shell);
-}
-
-export function resolveShellExecutable({
+export function resolveShellSpawnConfig({
+  cwd: _cwd,
   configuredShell,
-  knownPaths,
-}: ResolveShellExecutableOptions): string {
-  if (isExistingAbsolutePath(configuredShell)) {
-    return configuredShell;
-  }
-
-  for (const path of knownPaths) {
-    if (isExistingAbsolutePath(path)) {
-      return path;
+}: ResolveShellConfigOptions): { shell: string; args: string[] } {
+  if (configuredShell) {
+    if (!existsSync(configuredShell)) {
+      throw new Error(`Configured shell path not found: ${configuredShell}`);
     }
+
+    return {
+      shell: configuredShell,
+      args: ["-c"],
+    };
   }
 
-  throw new Error(
-    "Unable to resolve shell executable. Checked configured shell and known shell paths.",
-  );
+  return getShellConfig();
 }
 
 export function spawnCommand(
@@ -45,12 +34,12 @@ export function spawnCommand(
   cwd: string,
   configuredShell?: string,
 ): ChildProcess {
-  const shellExecutable = resolveShellExecutable({
+  const { shell, args } = resolveShellSpawnConfig({
+    cwd,
     configuredShell,
-    knownPaths: DEFAULT_KNOWN_SHELL_PATHS,
   });
 
-  return spawn(shellExecutable, ["-lc", command], {
+  return spawn(shell, [...args, command], {
     cwd,
     env: process.env,
     stdio: ["pipe", "pipe", "pipe"],
