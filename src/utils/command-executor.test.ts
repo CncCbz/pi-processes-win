@@ -2,7 +2,10 @@ import type * as nodeFs from "node:fs";
 import { existsSync } from "node:fs";
 import { getShellConfig } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { resolveShellSpawnConfig } from "./command-executor";
+import {
+  normalizeShellCommandForWindows,
+  resolveShellSpawnConfig,
+} from "./command-executor";
 
 vi.mock("@mariozechner/pi-coding-agent", () => ({
   getShellConfig: vi.fn(),
@@ -15,6 +18,50 @@ vi.mock("node:fs", async (importOriginal) => {
 
 const existsSyncMock = vi.mocked(existsSync);
 const getShellConfigMock = vi.mocked(getShellConfig);
+
+describe("normalizeShellCommandForWindows", () => {
+  it("rewrites npm to npm.cmd for Git Bash on Windows", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    expect(
+      normalizeShellCommandForWindows(
+        "npm run dev",
+        "D:/Programe/Git/bin/bash.exe",
+        () => true,
+      ),
+    ).toBe("npm.cmd run dev");
+  });
+
+  it("preserves leading env assignments when rewriting npm", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    expect(
+      normalizeShellCommandForWindows(
+        "PORT=8787 npm run dev",
+        "D:/Programe/Git/bin/bash.exe",
+        () => true,
+      ),
+    ).toBe("PORT=8787 npm.cmd run dev");
+  });
+
+  it("leaves commands unchanged when no cmd shim exists", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    expect(
+      normalizeShellCommandForWindows(
+        "npm run dev",
+        "D:/Programe/Git/bin/bash.exe",
+        () => false,
+      ),
+    ).toBe("npm run dev");
+  });
+});
 
 describe("resolveShellSpawnConfig", () => {
   it("prefers the extension shell override over Pi auto shell resolution", () => {

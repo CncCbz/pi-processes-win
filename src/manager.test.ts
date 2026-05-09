@@ -1,9 +1,16 @@
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ManagerEvent } from "./constants";
 import { ProcessManager } from "./manager";
 
 const TEST_CWD = tmpdir();
+const DEV_FIXTURE_CWD = fileURLToPath(
+  new URL("../test/fixtures/npm-dev-port-demo", import.meta.url),
+);
 
 function waitForEnd(manager: ProcessManager, id: string): Promise<void> {
   return new Promise((resolve) => {
@@ -21,6 +28,101 @@ function collectEvents(manager: ProcessManager): ManagerEvent[] {
   // Unsubscribe not stored; manager.cleanup() in afterEach clears all listeners.
   manager.onEvent((e) => events.push(e));
   return events;
+}
+
+const WINDOWS_GIT_BASH = "D:/Programe/Git/bin/bash.exe";
+
+function findWindowsBashLauncher(): string | null {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  if (existsSync(WINDOWS_GIT_BASH)) {
+    return WINDOWS_GIT_BASH;
+  }
+
+  const result = spawnSync("where", ["bash.exe"], {
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const shells = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return shells.find((shell) => /\/bin\/bash\.exe$/i.test(shell)) ?? null;
+}
+
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close(() => reject(new Error("Failed to allocate test port")));
+        return;
+      }
+
+      const { port } = address;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
+function getListeningPid(port: number): number | null {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  const script = [
+    `$tcp = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    'if ($null -eq $tcp) { Write-Output ""; exit 0 }',
+    "Write-Output $tcp.OwningProcess",
+  ].join("; ");
+
+  const result = spawnSync("powershell", ["-NoProfile", "-Command", script], {
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const output = result.stdout.trim();
+  if (!output) {
+    return null;
+  }
+
+  const pid = Number(output);
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
+}
+
+async function waitForCondition(
+  predicate: () => Promise<boolean>,
+  timeoutMs = 15000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Condition not met within ${timeoutMs}ms`);
 }
 
 describe("process_output_changed", () => {
@@ -225,6 +327,36 @@ describe("process_kill", () => {
       expect(result.info.status).toBe("killed");
     }
   });
+
+  it("releases the port after killing an npm dev server on Windows", async () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    const shell = findWindowsBashLauncher();
+    expect(shell).toBeTruthy();
+
+    const port = await getFreePort();
+    manager = new ProcessManager({
+      getConfiguredShellPath: () => shell ?? undefined,
+    });
+
+    const info = manager.start(
+      "dev-demo",
+      `PORT=${port} npm run dev`,
+      DEV_FIXTURE_CWD,
+    );
+
+    await waitForCondition(async () => getListeningPid(port) !== null);
+
+    const result = await manager.kill(info.id, {
+      signal: "SIGTERM",
+      timeoutMs: 15000,
+    });
+
+    expect(result.ok).toBe(true);
+    await waitForCondition(async () => getListeningPid(port) === null, 15000);
+  }, 30000);
 });
 
 describe("process_watch_matched", () => {

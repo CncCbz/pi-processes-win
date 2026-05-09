@@ -1,0 +1,7 @@
+{
+  "name": "pi-processes-npm-dev-port-demo",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch src/server.js"
+  }
+}
