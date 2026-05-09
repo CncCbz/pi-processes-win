@@ -1,7 +1,7 @@
 /**
  * Configuration for the processes extension.
  *
- * Global: ~/.pi/agent/extensions/process.json
+ * Global: Pi agent config directory, under extensions/process.json.
  * Memory: ephemeral overrides via /ps:settings
  */
 
@@ -23,7 +23,7 @@ export interface ProcessesConfig {
     maxOutputLines?: number;
   };
   execution?: {
-    /** Absolute shell path override. Leave unset to auto-resolve. */
+    /** Absolute bash path override. Leave unset to auto-resolve. */
     shellPath?: string;
   };
   widget?: {
@@ -42,7 +42,7 @@ export interface ProcessesConfig {
   };
   keybindings?: Partial<ProcessesKeybindings>;
   interception?: {
-    /** Block background bash commands (&, nohup, disown, setsid) and guide the model to use the process tool. */
+    /** Block shell background commands (&, nohup, disown, setsid, start, Start-Process) and guide the model to use the process tool. */
     blockBackgroundCommands?: boolean;
   };
 }

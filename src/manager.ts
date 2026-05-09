@@ -169,7 +169,7 @@ export class ProcessManager {
       this.flushPendingOutputChanged(managed.id);
       this.flushPendingLines(managed);
 
-      if (managed.lastSignalSent) {
+      if (managed.lastSignalSent || managed.status === "terminating") {
         managed.success = false;
         managed.exitCode = null;
         this.transition(managed, "killed");
@@ -271,14 +271,19 @@ export class ProcessManager {
     child.on("close", (code, signal) => {
       if (managed.endTime) return;
 
-      managed.exitCode = code;
+      const wasTerminated =
+        !!signal ||
+        !!managed.lastSignalSent ||
+        managed.status === "terminating";
+
+      managed.exitCode = wasTerminated ? null : code;
       managed.endTime = Date.now();
-      managed.success = code === 0;
+      managed.success = wasTerminated ? false : code === 0;
 
       this.flushPendingOutputChanged(id);
       this.flushPendingLines(managed);
 
-      if (signal) {
+      if (wasTerminated) {
         this.transition(managed, "killed");
       } else {
         this.transition(managed, "exited");
@@ -434,11 +439,34 @@ export class ProcessManager {
     }
 
     const graceMs =
-      process.platform === "win32" || signal === "SIGKILL" ? 200 : timeoutMs;
+      signal === "SIGKILL"
+        ? 200
+        : process.platform === "win32"
+          ? Math.min(timeoutMs, 1000)
+          : timeoutMs;
 
     await new Promise((r) => setTimeout(r, graceMs));
 
-    const alive = isProcessAlive(managed.pid);
+    let alive = isProcessAlive(managed.pid);
+
+    if (alive && process.platform === "win32" && signal !== "SIGKILL") {
+      try {
+        killProcessTree(managed.pid, "SIGKILL");
+        managed.lastSignalSent = "SIGKILL";
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code !== "EPERM") {
+          return {
+            ok: false,
+            info: this.toProcessInfo(managed),
+            reason: "error",
+          };
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, 200));
+      alive = isProcessAlive(managed.pid);
+    }
 
     if (alive) {
       this.transition(managed, "terminate_timeout");

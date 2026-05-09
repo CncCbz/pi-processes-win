@@ -103,7 +103,7 @@ Available settings include:
 
 - process list size
 - output limits
-- shell path override (by default, `auto` reuses Pi's `shellPath` setting when present)
+- bash path override (by default, `auto` uses Pi's normal shell discovery)
 - dock defaults
 - follow mode behavior
 - optional background command interception
@@ -114,7 +114,7 @@ Available settings include:
 
 - macOS: supported
 - Linux: supported
-- Windows: supported (requires a bash shell; `auto` reuses Pi's `shellPath` setting when configured, otherwise falls back to Git Bash / `bash.exe` discovery)
+- Windows: supported (requires a bash shell; `auto` falls back to Git Bash / `bash.exe` discovery)
 
 ## Runtime log watch alerts
 

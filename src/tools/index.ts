@@ -141,7 +141,7 @@ Note: User always sees process updates in the UI. The notify flags control wheth
       "Manage background processes without blocking the conversation",
     promptGuidelines: [
       "Use the process tool for long-running commands such as dev servers, test watchers, build watchers, and log tails instead of bash.",
-      "Avoid shell background patterns such as &, nohup, disown, or setsid when the process tool fits.",
+      "Avoid shell background patterns such as &, nohup, disown, setsid, start, or Start-Process when the process tool fits.",
       "After starting a process, continue other work instead of waiting for it.",
       "Use the pi-processes skill for examples and best practices when a task depends on background processes.",
     ],

@@ -58,7 +58,7 @@ pnpm lint
 pnpm typecheck
 ```
 
-Useful manual process scripts:
+Useful manual process scripts (run from Bash; on Windows use Git Bash):
 
 ```bash
 ./test/test-output.sh

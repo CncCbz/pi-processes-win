@@ -8,6 +8,7 @@ import {
 } from "./command-executor";
 
 vi.mock("@mariozechner/pi-coding-agent", () => ({
+  getAgentDir: vi.fn(() => "C:/Pi/agent"),
   getShellConfig: vi.fn(),
 }));
 
@@ -61,6 +62,20 @@ describe("normalizeShellCommandForWindows", () => {
       ),
     ).toBe("npm run dev");
   });
+
+  it("rewrites corepack to corepack.cmd for Git Bash on Windows", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    expect(
+      normalizeShellCommandForWindows(
+        "corepack pnpm install",
+        "D:/Programe/Git/bin/bash.exe",
+        () => true,
+      ),
+    ).toBe("corepack.cmd pnpm install");
+  });
 });
 
 describe("resolveShellSpawnConfig", () => {
@@ -92,6 +107,21 @@ describe("resolveShellSpawnConfig", () => {
         configuredShell: "C:/missing/bash.exe",
       }),
     ).toThrow(/Configured shell path not found/i);
+  });
+
+  it("rejects non-bash shell overrides on Windows", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    existsSyncMock.mockReturnValue(true);
+
+    expect(() =>
+      resolveShellSpawnConfig({
+        cwd: "D:/work/project",
+        configuredShell: "C:/Windows/System32/cmd.exe",
+      }),
+    ).toThrow(/must point to bash\.exe/i);
   });
 
   it("delegates auto shell resolution to Pi when no override is set", () => {

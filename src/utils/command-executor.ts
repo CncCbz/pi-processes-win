@@ -4,8 +4,8 @@
 
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { basename } from "node:path";
-import { getShellConfig } from "@mariozechner/pi-coding-agent";
+import { basename, delimiter, join } from "node:path";
+import { getAgentDir, getShellConfig } from "@mariozechner/pi-coding-agent";
 
 interface ResolveShellConfigOptions {
   cwd: string;
@@ -19,8 +19,27 @@ const WINDOWS_CMD_SHIMS = new Set([
   "pnpx",
   "yarn",
   "yarnpkg",
+  "corepack",
 ]);
 const windowsCmdShimCache = new Map<string, boolean>();
+
+function getManagedShellEnv(): NodeJS.ProcessEnv {
+  const pathKey =
+    Object.keys(process.env).find((key) => key.toLowerCase() === "path") ??
+    "PATH";
+  const currentPath = process.env[pathKey] ?? "";
+  const binDir = join(getAgentDir(), "bin");
+  const pathEntries = currentPath.split(delimiter).filter(Boolean);
+
+  if (pathEntries.includes(binDir)) {
+    return process.env;
+  }
+
+  return {
+    ...process.env,
+    [pathKey]: [binDir, currentPath].filter(Boolean).join(delimiter),
+  };
+}
 
 function hasWindowsCmdShim(command: string): boolean {
   const cached = windowsCmdShimCache.get(command);
@@ -32,6 +51,7 @@ function hasWindowsCmdShim(command: string): boolean {
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "ignore"],
     timeout: 1000,
+    windowsHide: true,
   });
   const exists = result.status === 0 && result.stdout.trim().length > 0;
   windowsCmdShimCache.set(command, exists);
@@ -79,6 +99,15 @@ export function resolveShellSpawnConfig({
       throw new Error(`Configured shell path not found: ${configuredShell}`);
     }
 
+    if (
+      process.platform === "win32" &&
+      basename(configuredShell).toLowerCase() !== "bash.exe"
+    ) {
+      throw new Error(
+        `Configured shell path must point to bash.exe on Windows: ${configuredShell}`,
+      );
+    }
+
     return {
       shell: configuredShell,
       args: ["-c"],
@@ -103,9 +132,10 @@ export function spawnCommand(
     [...args, normalizeShellCommandForWindows(command, shell)],
     {
       cwd,
-      env: process.env,
+      env: getManagedShellEnv(),
       stdio: ["pipe", "pipe", "pipe"],
-      detached: true,
+      detached: process.platform !== "win32",
+      windowsHide: true,
     },
   );
 }

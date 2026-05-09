@@ -30,15 +30,25 @@ function collectEvents(manager: ProcessManager): ManagerEvent[] {
   return events;
 }
 
-const WINDOWS_GIT_BASH = "D:/Programe/Git/bin/bash.exe";
+const WINDOWS_GIT_BASH_CANDIDATES = [
+  process.env.ProgramFiles
+    ? `${process.env.ProgramFiles}\\Git\\bin\\bash.exe`
+    : undefined,
+  process.env["ProgramFiles(x86)"]
+    ? `${process.env["ProgramFiles(x86)"]}\\Git\\bin\\bash.exe`
+    : undefined,
+  "D:/Programe/Git/bin/bash.exe",
+].filter((path): path is string => Boolean(path));
 
 function findWindowsBashLauncher(): string | null {
   if (process.platform !== "win32") {
     return null;
   }
 
-  if (existsSync(WINDOWS_GIT_BASH)) {
-    return WINDOWS_GIT_BASH;
+  for (const candidate of WINDOWS_GIT_BASH_CANDIDATES) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   const result = spawnSync("where", ["bash.exe"], {
@@ -54,7 +64,12 @@ function findWindowsBashLauncher(): string | null {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  return shells.find((shell) => /\/bin\/bash\.exe$/i.test(shell)) ?? null;
+  return (
+    shells.find((shell) => /[\\/]Git[\\/]bin[\\/]bash\.exe$/i.test(shell)) ??
+    shells.find((shell) => /[\\/]bin[\\/]bash\.exe$/i.test(shell)) ??
+    shells[0] ??
+    null
+  );
 }
 
 function getFreePort(): Promise<number> {
@@ -326,7 +341,7 @@ describe("process_kill", () => {
     if (result.ok) {
       expect(result.info.status).toBe("killed");
     }
-  });
+  }, 10000);
 
   it("releases the port after killing an npm dev server on Windows", async () => {
     if (process.platform !== "win32") {

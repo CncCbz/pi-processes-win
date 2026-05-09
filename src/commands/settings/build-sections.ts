@@ -63,7 +63,7 @@ export function buildSettingsSections(
           id: "execution.shellPath",
           label: "Shell path",
           description:
-            "Absolute shell path override used to execute commands. Auto reuses Pi's shellPath setting when available, then Pi's normal shell discovery.",
+            "Absolute bash path override used to execute commands. Auto uses Pi's normal shell discovery; Windows requires bash.exe.",
           currentValue:
             tabConfig?.execution?.shellPath ??
             resolved.execution.shellPath ??
@@ -87,7 +87,7 @@ export function buildSettingsSections(
           id: "interception.blockBackgroundCommands",
           label: "Block background commands",
           description:
-            "Block bash background commands (&, nohup, disown, setsid) and guide the model to use the process tool",
+            "Block shell background commands (&, nohup, disown, setsid, start, Start-Process) and guide the model to use the process tool",
           currentValue:
             (tabConfig?.interception?.blockBackgroundCommands ??
             resolved.interception.blockBackgroundCommands)

@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ToolCallHeader } from "@aliou/pi-utils-ui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { ExecuteResult, ProcessInfo } from "../../constants";
@@ -20,6 +22,10 @@ export function renderDebugCall(
   );
 }
 
+function debugLogFile(fileName: string): string {
+  return join(tmpdir(), "pi-processes-demo", fileName);
+}
+
 function mockProcess(overrides?: Partial<ProcessInfo>): ProcessInfo {
   const now = Date.now();
   return {
@@ -27,14 +33,14 @@ function mockProcess(overrides?: Partial<ProcessInfo>): ProcessInfo {
     name: "demo-server",
     pid: 4242,
     command: "pnpm dev --port 3000",
-    cwd: "/tmp/demo",
+    cwd: join(tmpdir(), "demo"),
     startTime: now - 12_000,
     endTime: null,
     status: "running",
     exitCode: null,
     success: null,
-    stdoutFile: "/tmp/pi-processes-demo/proc_42-stdout.log",
-    stderrFile: "/tmp/pi-processes-demo/proc_42-stderr.log",
+    stdoutFile: debugLogFile("proc_42-stdout.log"),
+    stderrFile: debugLogFile("proc_42-stderr.log"),
     alertOnSuccess: false,
     alertOnFailure: true,
     alertOnKill: false,
@@ -122,8 +128,8 @@ export function executeDebugPreview(params: DebugParams): ExecuteResult {
           ],
         },
         logFiles: {
-          stdoutFile: "/tmp/pi-processes-demo/proc_42-stdout.log",
-          stderrFile: "/tmp/pi-processes-demo/proc_42-stderr.log",
+          stdoutFile: debugLogFile("proc_42-stdout.log"),
+          stderrFile: debugLogFile("proc_42-stderr.log"),
         },
       },
     };
@@ -137,8 +143,8 @@ export function executeDebugPreview(params: DebugParams): ExecuteResult {
         success: true,
         message: "Debug preview: logs",
         logFiles: {
-          stdoutFile: "/tmp/pi-processes-demo/proc_42-stdout.log",
-          stderrFile: "/tmp/pi-processes-demo/proc_42-stderr.log",
+          stdoutFile: debugLogFile("proc_42-stdout.log"),
+          stderrFile: debugLogFile("proc_42-stderr.log"),
         },
       },
     };
